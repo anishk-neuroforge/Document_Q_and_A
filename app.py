@@ -239,21 +239,27 @@ if st.button("Search"):
     prompt = SYSTEM_PROMPT.format(context=context, question=query)
 
     # --- Groq Llama 3 generation ---
-    message = llm.chat.completions.create(
-    model="llama3-8b-8192",
-    max_tokens=512,
-    messages=[
-        {
-            "role": "system",
-            "content": "You are a helpful document Q&A assistant. Answer concisely using only the provided context. If the answer is not in the context, say so."
-        },
-        {
-            "role": "user",
-            "content": f"Context:\n{context}\n\nQuestion: {query}"
-        }
-    ]
-)
-    response = message.choices[0].message.content
+    # AFTER
+    # --- Groq generation ---
+    try:
+        message = llm.chat.completions.create(
+            model="mixtral-8x7b-32768",
+            max_tokens=512,
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a helpful document Q&A assistant. Answer concisely using only the provided context. If the answer is not in the context, say so."
+                },
+                {
+                    "role": "user",
+                    "content": f"Context:\n{context}\n\nQuestion: {query}"
+                }
+            ]
+        )
+        response = message.choices[0].message.content
+    except Exception as e:
+        st.error(f"Groq API Error: {str(e)}")
+        st.stop()
 
     total_time     = round(time.time() - start_time, 2)
     retrieval_time = round(retrieval_end - start_time, 2)
