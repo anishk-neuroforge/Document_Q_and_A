@@ -2,6 +2,7 @@ import os
 import time
 import pathlib
 import streamlit as st
+from groq import Groq
 
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -9,7 +10,6 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 
 from utils.prompts import SYSTEM_PROMPT
-
 
 # ---------------------------------------------------
 # CONFIG
@@ -22,8 +22,7 @@ VECTOR_DIR = str(BASE_DIR / "vectorstore")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(VECTOR_DIR, exist_ok=True)
 
-MAX_CONTEXT_CHARS = 800
-
+MAX_CONTEXT_CHARS = 6000
 
 # ---------------------------------------------------
 # PAGE CONFIG
@@ -38,7 +37,6 @@ st.set_page_config(
 st.title("📄 Document Q&A — RAG Pipeline")
 st.markdown("Semantic Retrieval + Grounded Source Citations over PDF documents")
 
-
 # ---------------------------------------------------
 # SIDEBAR
 # ---------------------------------------------------
@@ -49,16 +47,15 @@ st.sidebar.markdown("""
 - LangChain
 - FAISS
 - all-MiniLM-L6-v2
-- HuggingFace
+- HuggingFace Embeddings
 - Streamlit
-- FLAN-T5
+- Llama 3 via Groq
 
 ### Retrieval Settings
 - Top-k: 5
 - Chunk Size: 512
 - Overlap: 50
 """)
-
 
 # ---------------------------------------------------
 # LOAD EMBEDDINGS
@@ -70,23 +67,16 @@ def load_embeddings():
         model_name="sentence-transformers/all-MiniLM-L6-v2"
     )
 
-
 # ---------------------------------------------------
-# LOAD LLM  — direct T5, no pipeline
+# LOAD LLM — Groq Llama 3 (free)
 # ---------------------------------------------------
 
-@st.cache_resource(show_spinner="Loading FLAN-T5 model…")
+@st.cache_resource(show_spinner="Connecting to Groq…")
 def load_llm():
-    from transformers import T5ForConditionalGeneration, T5Tokenizer
-    model_name = "google/flan-t5-base"
-    tokenizer  = T5Tokenizer.from_pretrained(model_name)
-    model      = T5ForConditionalGeneration.from_pretrained(model_name)
-    return tokenizer, model
-
+    return Groq(api_key=st.secrets["GROQ_API_KEY"])
 
 embeddings = load_embeddings()
 llm        = load_llm()
-
 
 # ---------------------------------------------------
 # LOAD VECTORSTORE
@@ -106,23 +96,54 @@ def load_vectorstore():
         st.error(f"Failed to load vectorstore: {e}")
         return None
 
-
 if "vectorstore" not in st.session_state:
     st.session_state.vectorstore = load_vectorstore()
 
+# ---------------------------------------------------
+# SAMPLE PDF LOADER (for recruiters — no upload needed)
+# ---------------------------------------------------
+
+st.info("💡 **Demo tip:** Upload any PDF, or click below to load a sample AI research paper instantly.")
+
+if st.button("⚡ Load Sample PDF (Attention Is All You Need)"):
+    import urllib.request
+    sample_path = os.path.join(UPLOAD_DIR, "attention_paper.pdf")
+    with st.spinner("Downloading sample paper…"):
+        urllib.request.urlretrieve(
+            "https://arxiv.org/pdf/1706.03762",
+            sample_path
+        )
+        loader = PyPDFLoader(sample_path)
+        docs   = loader.load()
+        for doc in docs:
+            doc.metadata["source"] = "attention_paper.pdf"
+
+        splitter = RecursiveCharacterTextSplitter(
+            chunk_size=512,
+            chunk_overlap=50,
+            separators=["\n\n", "\n", ". ", " ", ""]
+        )
+        chunks = splitter.split_documents(docs)
+        vectorstore = FAISS.from_documents(chunks, embeddings)
+        vectorstore.save_local(VECTOR_DIR)
+        st.session_state.vectorstore = vectorstore
+
+    st.success(f"✅ Sample loaded! {len(chunks)} chunks indexed.")
+    st.markdown("**Try asking:** `What is the transformer architecture?` or `What were the BLEU score results?`")
+
+st.markdown("---")
 
 # ---------------------------------------------------
 # PDF UPLOAD
 # ---------------------------------------------------
 
-st.subheader("📤 Upload PDFs")
+st.subheader("📤 Upload Your Own PDFs")
 
 uploaded_files = st.file_uploader(
     "Upload one or more PDF files",
     type=["pdf"],
     accept_multiple_files=True
 )
-
 
 # ---------------------------------------------------
 # BUILD KNOWLEDGE BASE
@@ -164,7 +185,6 @@ if st.button("Build Knowledge Base"):
 
     st.success(f"✅ Knowledge base built with {len(chunks)} chunks from {len(uploaded_files)} file(s).")
 
-
 # ---------------------------------------------------
 # QUERY SECTION
 # ---------------------------------------------------
@@ -176,7 +196,6 @@ query = st.text_input(
     placeholder="What is this document about?"
 )
 
-
 # ---------------------------------------------------
 # SEARCH
 # ---------------------------------------------------
@@ -184,7 +203,7 @@ query = st.text_input(
 if st.button("Search"):
 
     if st.session_state.vectorstore is None:
-        st.error("Please build the knowledge base first.")
+        st.error("Please load a sample or build a knowledge base first.")
         st.stop()
 
     if not query.strip():
@@ -193,11 +212,11 @@ if st.button("Search"):
 
     start_time = time.time()
 
-    # Retrieval
+    # --- FAISS Retrieval (RAG pipeline) ---
     docs = st.session_state.vectorstore.similarity_search_with_score(query, k=5)
     retrieval_end = time.time()
 
-    # Build context
+    # --- Build context from retrieved chunks ---
     context       = ""
     citations_map = {}
 
@@ -216,19 +235,21 @@ if st.button("Search"):
 
         context += chunk_text
 
-    # Prompt
+    # --- Prompt ---
     prompt = SYSTEM_PROMPT.format(context=context, question=query)
 
-    # Generation — direct T5 (no pipeline)
-    tokenizer, model = llm
-    inputs  = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=512)
-    outputs = model.generate(**inputs, max_new_tokens=128)
-    response = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    # --- Groq Llama 3 generation ---
+    message = llm.chat.completions.create(
+        model="llama3-8b-8192",
+        max_tokens=512,
+        messages=[{"role": "user", "content": prompt}]
+    )
+    response = message.choices[0].message.content
 
     total_time     = round(time.time() - start_time, 2)
     retrieval_time = round(retrieval_end - start_time, 2)
 
-    # Results
+    # --- Results ---
     st.markdown("---")
     st.subheader("🧠 Answer")
     st.write(response)
