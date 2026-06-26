@@ -1,693 +1,449 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Document Q&A — RAG Pipeline | Anish Kumar</title>
-<link rel="icon" type="image/png" href="favicon.png">
-<meta name="description" content="Production-ready RAG pipeline for semantic querying across 1K+ PDF documents — FAISS vector search, transformer embeddings, grounded answers with source citations."/>
-<meta property="og:title" content="Document Q&A — RAG Pipeline | Anish Kumar"/>
-<meta property="og:description" content="Production-ready RAG pipeline for semantic querying across 1K+ PDF documents."/>
-<meta property="og:type" content="website"/>
-<meta property="og:url" content="https://anishk-neuroforge.github.io"/>
-<meta property="og:image" content="https://anishk-neuroforge.github.io/assets/og-image.png"/>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Space+Grotesk:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Document Q&A — RAG Pipeline · Anish Kumar</title>
 <style>
-  *{margin:0;padding:0;box-sizing:border-box;}
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400..700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
   :root{
-    --bg:#050a0e;
-    --bg2:#0b1218;
-    --bg3:#101820;
-    --border:#1a2d3a;
-    --border2:#1f3545;
-    --green:#00ffaa;
-    --green2:#00cc88;
-    --green-dim:#00ffaa22;
-    --text:#e2eaf0;
-    --muted:#5a7a8a;
-    --muted2:#3a5a6a;
-    --accent:#0af0b0;
+    --bg:#ffffff;
+    --bg-soft:#f7f7f5;
+    --ink:#14151a;
+    --ink-soft:#5b5e68;
+    --ink-faint:#9a9ca5;
+    --accent:#2f4fe0;
+    --accent-soft:#eef1ff;
+    --highlight:#ffe066;
+    --highlight-soft:#fff8e0;
+    --border:#e7e7e3;
+    --success:#1f9d55;
+    --success-soft:#e9f7ee;
+    --progress-c:#d88a1a;
+    --progress-soft:#fdf1de;
+    --planned-c:#9a9ca5;
+    --radius:14px;
   }
+
+  *{box-sizing:border-box;}
   html{scroll-behavior:smooth;}
   body{
+    margin:0;
     background:var(--bg);
-    color:var(--text);
-    font-family:'Space Grotesk',sans-serif;
-    min-height:100vh;
-    overflow-x:hidden;
+    color:var(--ink);
+    font-family:'Inter',sans-serif;
+    line-height:1.55;
+    -webkit-font-smoothing:antialiased;
   }
+  .mono{font-family:'IBM Plex Mono',monospace;}
+  a{color:inherit;text-decoration:none;}
+  .wrap{max-width:1040px;margin:0 auto;padding:0 28px;}
 
-  /* grid bg */
-  body::before{
-    content:'';
-    position:fixed;
-    inset:0;
-    background-image:
-      linear-gradient(var(--border) 1px, transparent 1px),
-      linear-gradient(90deg, var(--border) 1px, transparent 1px);
-    background-size:48px 48px;
-    opacity:0.3;
-    pointer-events:none;
-    z-index:0;
-  }
-
-  .glow-orb{
-    position:fixed;
-    width:600px;height:600px;
-    border-radius:50%;
-    background:radial-gradient(circle, #00ffaa08 0%, transparent 70%);
-    top:-150px;left:-150px;
-    pointer-events:none;
-    z-index:0;
-  }
-  .glow-orb2{
-    position:fixed;
-    width:400px;height:400px;
-    border-radius:50%;
-    background:radial-gradient(circle, #00aaff06 0%, transparent 70%);
-    bottom:0;right:0;
-    pointer-events:none;
-    z-index:0;
-  }
-
-  .container{
-    max-width:860px;
-    margin:0 auto;
-    padding:0 24px;
-    position:relative;
-    z-index:1;
-  }
-
-  /* NAV */
-  nav{
-    padding:20px 0;
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
+  /* ---------- topbar ---------- */
+  .topbar{
     border-bottom:1px solid var(--border);
+    padding:18px 0;
   }
-  .nav-logo{
-    font-family:'JetBrains Mono',monospace;
+  .topbar .wrap{display:flex;align-items:center;justify-content:space-between;}
+  .breadcrumb{
+    font-family:'IBM Plex Mono',monospace;
     font-size:13px;
-    color:var(--muted);
+    color:var(--ink-soft);
   }
-  .nav-logo span{color:var(--green);}
-  .nav-back{
-    font-size:12px;
-    color:var(--muted);
-    text-decoration:none;
-    font-family:'JetBrains Mono',monospace;
-    display:flex;align-items:center;gap:6px;
-    transition:color .2s;
-  }
-  .nav-back:hover{color:var(--green);}
+  .breadcrumb span{color:var(--ink-faint);}
+  .topnav{display:flex;gap:22px;font-size:14px;font-weight:500;}
+  .topnav a{color:var(--ink-soft);transition:color .15s;}
+  .topnav a:hover{color:var(--accent);}
 
-  /* HEADER */
-  header{padding:56px 0 40px;}
-  .tag-row{
-    display:flex;
-    align-items:center;
-    gap:10px;
-    margin-bottom:20px;
-    flex-wrap:wrap;
+  /* ---------- hero ---------- */
+  .hero{padding:64px 0 32px;}
+  .eyebrow{
+    display:inline-flex;align-items:center;gap:8px;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12.5px;letter-spacing:.04em;
+    color:var(--accent);
+    background:var(--accent-soft);
+    border:1px solid #d8deff;
+    border-radius:999px;
+    padding:6px 14px;
+    margin-bottom:22px;
   }
-  .tag{
-    font-family:'JetBrains Mono',monospace;
-    font-size:11px;
-    padding:4px 10px;
-    border-radius:4px;
-    border:1px solid;
-    letter-spacing:.05em;
-  }
-  .tag-nlp{
-    color:var(--green);
-    border-color:var(--green2);
-    background:var(--green-dim);
-  }
-  .tag-wip{
-    color:#ffaa00;
-    border-color:#ffaa0044;
-    background:#ffaa0011;
-    display:flex;align-items:center;gap:5px;
-  }
-  .blink{
-    width:6px;height:6px;border-radius:50%;
-    background:#ffaa00;
-    animation:blink 1.2s ease-in-out infinite;
-  }
-  @keyframes blink{0%,100%{opacity:1;}50%{opacity:.2;}}
-
+  .dot{width:6px;height:6px;border-radius:50%;background:var(--progress-c);}
   h1{
-    font-size:clamp(28px,4vw,42px);
+    font-family:'Fraunces',serif;
     font-weight:600;
-    line-height:1.15;
-    margin-bottom:14px;
-    letter-spacing:-.02em;
+    font-size:48px;
+    line-height:1.1;
+    letter-spacing:-0.01em;
+    margin:0 0 18px;
+    max-width:780px;
   }
-  .h1-dim{color:var(--muted);}
-  .subtitle{
-    font-size:15px;
-    color:var(--muted);
-    line-height:1.7;
-    max-width:620px;
-    margin-bottom:32px;
+  h1 em{
+    font-style:normal;
+    background:linear-gradient(180deg, transparent 62%, var(--highlight) 62%);
   }
-
-  .cta-row{display:flex;gap:12px;flex-wrap:wrap;align-items:center;}
-  .btn-demo{
+  .lede{
+    font-size:18px;
+    color:var(--ink-soft);
+    max-width:600px;
+    margin:0 0 30px;
+  }
+  .cta-row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;}
+  .btn{
+    font-size:14.5px;font-weight:600;
+    padding:11px 20px;border-radius:10px;
+    border:1px solid var(--ink);
     display:inline-flex;align-items:center;gap:8px;
-    padding:11px 22px;
-    background:var(--green);
-    color:#050a0e;
-    font-weight:600;
-    font-size:14px;
-    border-radius:6px;
-    text-decoration:none;
     transition:transform .15s, box-shadow .15s;
-    font-family:'Space Grotesk',sans-serif;
   }
-  .btn-demo:hover{transform:translateY(-1px);box-shadow:0 0 24px #00ffaa44;}
-  .btn-demo svg{width:16px;height:16px;}
-  .btn-gh{
-    display:inline-flex;align-items:center;gap:8px;
-    padding:11px 20px;
-    border:1px solid var(--border2);
-    color:var(--muted);
-    font-size:14px;
-    border-radius:6px;
-    text-decoration:none;
-    transition:border-color .2s,color .2s;
-    font-family:'Space Grotesk',sans-serif;
-  }
-  .btn-gh:hover{border-color:var(--green2);color:var(--text);}
-  .demo-note{
-    font-size:11px;
-    color:var(--muted2);
-    font-family:'JetBrains Mono',monospace;
-    margin-top:6px;
-    width:100%;
+  .btn-primary{background:var(--ink);color:#fff;}
+  .btn-primary:hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(20,21,26,.18);}
+  .btn-ghost{background:transparent;color:var(--ink);border-color:var(--border);}
+  .btn-ghost:hover{border-color:var(--ink);}
+  .fineprint{
+    font-size:13px;color:var(--ink-faint);
+    border-left:2px solid var(--border);
+    padding-left:12px;
+    max-width:560px;
   }
 
-  /* METRICS */
-  .metrics-row{
+  /* ---------- hero visual : doc -> answer ---------- */
+  .demo{
+    margin-top:48px;
     display:grid;
-    grid-template-columns:repeat(3,1fr);
-    gap:1px;
-    background:var(--border);
+    grid-template-columns:1fr auto 1fr;
+    gap:18px;
+    align-items:center;
+  }
+  .panel{
+    background:var(--bg-soft);
     border:1px solid var(--border);
-    border-radius:10px;
-    overflow:hidden;
-    margin:44px 0;
+    border-radius:var(--radius);
+    padding:22px;
   }
-  .metric{
-    background:var(--bg2);
-    padding:22px 24px;
-    text-align:center;
+  .panel-label{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11.5px;color:var(--ink-faint);
+    text-transform:uppercase;letter-spacing:.06em;
+    margin-bottom:14px;display:block;
   }
-  .metric-label{
-    font-family:'JetBrains Mono',monospace;
-    font-size:10px;
-    letter-spacing:.12em;
-    color:var(--muted);
-    text-transform:uppercase;
-    margin-bottom:8px;
+  .doc-line{font-size:14px;color:var(--ink-soft);margin:0 0 8px;}
+  .hl{
+    background:var(--highlight);
+    box-shadow:0 0 0 3px var(--highlight);
+    border-radius:3px;
+    padding:1px 2px;
+    color:var(--ink);
+    font-weight:500;
   }
-  .metric-val{
-    font-family:'JetBrains Mono',monospace;
-    font-size:26px;
-    font-weight:700;
-    color:var(--green);
+  .arrow{font-family:'IBM Plex Mono',monospace;color:var(--ink-faint);font-size:22px;text-align:center;}
+  .answer-q{font-size:13px;color:var(--ink-faint);margin:0 0 6px;font-family:'IBM Plex Mono',monospace;}
+  .answer-a{font-size:15px;margin:0 0 14px;}
+  .citation{
+    display:inline-flex;align-items:center;gap:6px;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;color:var(--accent);
+    background:var(--accent-soft);
+    border-radius:999px;padding:5px 11px;
   }
 
-  /* DEMO PREVIEW */
-  .demo-preview{
+  /* ---------- status ---------- */
+  .status{
+    margin:56px 0;
+    background:var(--bg-soft);
     border:1px solid var(--border);
-    border-radius:10px;
-    overflow:hidden;
-    margin:24px 0 44px;
+    border-radius:var(--radius);
+    padding:26px 28px;
+  }
+  .status-top{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:10px;margin-bottom:14px;}
+  .status-top h3{margin:0;font-size:16px;font-weight:600;}
+  .status-pct{font-family:'IBM Plex Mono',monospace;color:var(--progress-c);font-weight:600;font-size:14px;}
+  .bar{height:7px;background:#eee;border-radius:99px;overflow:hidden;margin-bottom:16px;}
+  .bar-fill{height:100%;width:55%;background:linear-gradient(90deg,var(--accent),var(--progress-c));}
+  .status p{margin:0;color:var(--ink-soft);font-size:14.5px;}
+  .status strong{color:var(--ink);}
+
+  /* ---------- stats ---------- */
+  .stats-head{margin:56px 0 18px;}
+  .stats-head h2{font-family:'Fraunces',serif;font-size:24px;margin:0 0 8px;}
+  .stats-head p{color:var(--ink-soft);font-size:14.5px;margin:0;max-width:620px;}
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:10px;}
+  .stat{
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:20px 18px;
+  }
+  .stat-label{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-faint);letter-spacing:.06em;text-transform:uppercase;}
+  .stat-value{font-family:'Fraunces',serif;font-size:30px;margin:6px 0 6px;}
+  .stat-note{font-size:12.5px;color:var(--ink-soft);}
+  .disclaimer{
+    font-size:13px;color:var(--ink-faint);
+    margin-top:6px;
+  }
+
+  /* ---------- pipeline ---------- */
+  .section-head{margin:64px 0 22px;}
+  .section-head h2{font-family:'Fraunces',serif;font-size:24px;margin:0 0 8px;}
+  .section-head p{color:var(--ink-soft);font-size:14.5px;margin:0;max-width:620px;}
+  .pipeline{
+    display:flex;align-items:center;flex-wrap:wrap;gap:0;
+    border:1px solid var(--border);border-radius:var(--radius);
+    padding:26px;background:var(--bg-soft);
+  }
+  .pstep{
+    flex:1 1 130px;text-align:center;padding:10px 6px;
+  }
+  .pstep .pname{font-family:'IBM Plex Mono',monospace;font-weight:500;font-size:13.5px;}
+  .pstep .pdesc{font-size:11.5px;color:var(--ink-faint);margin-top:4px;}
+  .parrow{color:var(--ink-faint);font-family:'IBM Plex Mono',monospace;padding:0 4px;}
+
+  /* ---------- model card ---------- */
+  .modelcard{
+    border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;
+  }
+  .mc-row{display:grid;grid-template-columns:160px 1fr;border-bottom:1px solid var(--border);}
+  .mc-row:last-child{border-bottom:none;}
+  .mc-key{
+    font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:var(--ink-faint);
+    padding:14px 18px;background:var(--bg-soft);
+  }
+  .mc-val{padding:14px 18px;font-size:14px;}
+
+  /* ---------- progress columns ---------- */
+  .progress-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;}
+  .pcol h4{
+    display:flex;align-items:center;gap:8px;
+    font-size:13.5px;font-weight:600;margin:0 0 14px;
+  }
+  .pcol h4 .ic{width:9px;height:9px;border-radius:50%;display:inline-block;}
+  .ic-done{background:var(--success);}
+  .ic-progress{background:var(--progress-c);}
+  .ic-planned{background:var(--planned-c);}
+  .pcol ul{list-style:none;margin:0;padding:0;}
+  .pcol li{
+    font-size:13.5px;color:var(--ink-soft);
+    padding:9px 0 9px 22px;
+    border-bottom:1px solid var(--border);
     position:relative;
   }
-  .demo-preview img{
-    width:100%;
-    display:block;
-    opacity:0.9;
-    transition:opacity .3s;
+  .pcol li:last-child{border-bottom:none;}
+  .pcol li::before{
+    position:absolute;left:0;top:11px;font-family:'IBM Plex Mono',monospace;font-size:12px;
   }
-  .demo-preview:hover img{opacity:1;}
-  .demo-preview-overlay{
-    position:absolute;
-    bottom:0;left:0;right:0;
-    padding:16px 20px;
-    background:linear-gradient(transparent, rgba(5,10,14,0.95));
-    font-size:12px;
-    color:var(--muted);
-    font-family:'JetBrains Mono',monospace;
-  }
+  .col-done li::before{content:"✓";color:var(--success);}
+  .col-progress li::before{content:"→";color:var(--progress-c);}
+  .col-planned li::before{content:"·";color:var(--planned-c);font-size:18px;top:7px;}
 
-  /* UNDER CONSTRUCTION BANNER */
-  .wip-banner{
-    background:linear-gradient(90deg,#ffaa0011,#ffaa0008,#ffaa0011);
-    border:1px solid #ffaa0033;
-    border-radius:10px;
-    padding:20px 24px;
-    margin:40px 0;
-    display:flex;
-    align-items:center;
-    gap:18px;
+  /* ---------- stack ---------- */
+  .stack-grid{display:flex;flex-wrap:wrap;gap:10px;}
+  .chip{
+    display:flex;align-items:center;gap:9px;
+    border:1px solid var(--border);border-radius:10px;
+    padding:9px 14px;font-size:13px;
   }
-  .wip-icon{font-size:28px;flex-shrink:0;}
-  .wip-title{
-    font-weight:600;
-    font-size:15px;
-    color:#ffcc44;
-    margin-bottom:4px;
-  }
-  .wip-desc{font-size:13px;color:var(--muted);line-height:1.6;}
-  .progress-bar-wrap{
-    margin-top:12px;
-    background:var(--border);
-    border-radius:99px;
-    height:5px;
-    overflow:hidden;
-    width:100%;
-  }
-  .progress-bar{
-    height:100%;
-    width:55%;
-    background:linear-gradient(90deg,var(--green2),var(--green));
-    border-radius:99px;
-    animation:progress-load 1.2s ease both;
-  }
-  @keyframes progress-load{from{width:0;}to{width:55%;}}
-  .progress-pct{
-    font-family:'JetBrains Mono',monospace;
-    font-size:11px;
-    color:var(--muted);
-    margin-top:6px;
-  }
-
-  /* SECTIONS */
-  .section{margin-bottom:40px;}
-  .section-label{
-    font-family:'JetBrains Mono',monospace;
-    font-size:11px;
-    letter-spacing:.1em;
-    color:var(--muted);
-    text-transform:uppercase;
-    margin-bottom:16px;
-    display:flex;align-items:center;gap:10px;
-  }
-  .section-label::after{
-    content:'';flex:1;
-    height:1px;background:var(--border);
-  }
-
-  /* MODEL CARD */
-  .model-card{
-    background:var(--bg2);
-    border:1px solid var(--border);
-    border-radius:10px;
-    overflow:hidden;
-  }
-  .model-card-header{
-    padding:16px 20px;
-    border-bottom:1px solid var(--border);
-    font-family:'JetBrains Mono',monospace;
-    font-size:13px;
-    color:var(--green);
-    display:flex;align-items:center;gap:8px;
-  }
-  .card-dot{width:8px;height:8px;border-radius:50%;background:var(--green);}
-  .model-card-body{padding:20px;}
-  .model-row{
-    display:flex;
-    justify-content:space-between;
-    align-items:baseline;
-    padding:9px 0;
-    border-bottom:1px solid var(--border);
-    font-size:14px;
-    gap:16px;
-  }
-  .model-row:last-child{border-bottom:none;}
-  .model-key{
-    color:var(--muted);
-    font-weight:500;
-    min-width:120px;
-    flex-shrink:0;
-  }
-  .model-val{color:var(--text);text-align:right;}
-  .model-val strong{color:var(--green);}
-
-  .pipeline-box{
-    margin-top:16px;
-    background:var(--bg3);
-    border:1px solid var(--border2);
-    border-radius:6px;
-    padding:14px 18px;
-    font-family:'JetBrains Mono',monospace;
-    font-size:12px;
-    color:var(--green2);
-    line-height:1.8;
-    word-break:break-word;
-  }
-  .pipe-arrow{color:var(--muted);}
-
-  .tags-row{
-    display:flex;gap:8px;flex-wrap:wrap;
-    margin-top:16px;
-  }
-  .tech-tag{
-    font-family:'JetBrains Mono',monospace;
-    font-size:11px;
-    padding:5px 12px;
-    border:1px solid var(--border2);
-    border-radius:4px;
-    color:var(--muted);
-    background:var(--bg3);
-  }
-
-  /* PROGRESS */
-  .progress-card{
-    background:var(--bg2);
-    border:1px solid var(--border);
-    border-radius:10px;
-    padding:20px;
-  }
-  .progress-group{margin-bottom:24px;}
-  .progress-group:last-child{margin-bottom:0;}
-  .group-label{
-    font-size:12px;
-    font-weight:600;
-    margin-bottom:12px;
-    display:flex;align-items:center;gap:8px;
-    font-family:'JetBrains Mono',monospace;
-  }
-  .group-done{color:var(--green);}
-  .group-wip{color:#ffaa00;}
-  .group-plan{color:var(--muted);}
-  .check-item{
-    display:flex;align-items:flex-start;gap:10px;
-    padding:6px 0;
-    font-size:13px;
-    color:var(--muted);
-    line-height:1.5;
-  }
-  .check-item.done{color:var(--text);}
-  .check-icon{
-    width:16px;height:16px;
-    border-radius:3px;
-    flex-shrink:0;
-    margin-top:1px;
+  .chip .badge{
+    width:24px;height:24px;border-radius:6px;
+    background:var(--accent-soft);color:var(--accent);
+    font-family:'IBM Plex Mono',monospace;font-size:10.5px;font-weight:600;
     display:flex;align-items:center;justify-content:center;
-    font-size:10px;
-    font-weight:700;
   }
-  .icon-done{background:var(--green);color:#050a0e;}
-  .icon-wip{border:1px solid #ffaa00;color:#ffaa00;}
-  .icon-plan{border:1px solid var(--muted2);color:var(--muted2);}
+  .chip .chip-role{color:var(--ink-faint);font-size:11.5px;}
 
-  /* STACK */
-  .stack-grid{
-    display:grid;
-    grid-template-columns:repeat(auto-fit,minmax(170px,1fr));
-    gap:10px;
-  }
-  .stack-item{
-    background:var(--bg2);
-    border:1px solid var(--border);
-    border-radius:8px;
-    padding:14px 16px;
-    display:flex;align-items:center;gap:12px;
-  }
-  .stack-icon{
-    width:32px;height:32px;border-radius:6px;
-    background:var(--green-dim);
-    display:flex;align-items:center;justify-content:center;
-    font-family:'JetBrains Mono',monospace;
-    font-size:10px;
-    color:var(--green);
-    font-weight:700;
-    flex-shrink:0;
-  }
-  .stack-name{font-size:13px;font-weight:500;color:var(--text);}
-  .stack-role{font-size:11px;color:var(--muted);margin-top:2px;}
-
-  /* FOOTER */
+  /* ---------- footer ---------- */
   footer{
-    padding:40px 0 32px;
-    border-top:1px solid var(--border);
-    margin-top:60px;
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    flex-wrap:wrap;
-    gap:16px;
+    margin-top:80px;border-top:1px solid var(--border);
+    padding:32px 0 56px;
   }
-  .footer-author{font-size:13px;color:var(--muted);}
-  .footer-author strong{color:var(--text);}
-  .footer-links{display:flex;gap:16px;}
-  .footer-links a{
-    font-size:12px;
-    color:var(--muted);
-    text-decoration:none;
-    font-family:'JetBrains Mono',monospace;
-    transition:color .2s;
-  }
-  .footer-links a:hover{color:var(--green);}
+  footer .wrap{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px;}
+  footer p{margin:0;font-size:13.5px;color:var(--ink-soft);}
+  footer .flinks{display:flex;gap:18px;font-size:13.5px;font-weight:500;}
+  footer .flinks a:hover{color:var(--accent);}
 
-  /* SCROLL REVEAL */
-  .reveal{
-    opacity:0;
-    transform:translateY(20px);
-    transition:opacity .6s ease, transform .6s ease;
-  }
-  .reveal.visible{
-    opacity:1;
-    transform:translateY(0);
+  @media (max-width:760px){
+    h1{font-size:34px;}
+    .demo{grid-template-columns:1fr;}
+    .arrow{transform:rotate(90deg);}
+    .stats{grid-template-columns:1fr;}
+    .progress-grid{grid-template-columns:1fr;}
+    .mc-row{grid-template-columns:120px 1fr;}
   }
 
-  @media(max-width:600px){
-    .metrics-row{grid-template-columns:1fr;}
-    .wip-banner{flex-direction:column;gap:12px;}
-    footer{flex-direction:column;}
+  @media (prefers-reduced-motion: reduce){
+    *{transition:none !important; animation:none !important;}
   }
 </style>
 </head>
 <body>
-<div class="glow-orb"></div>
-<div class="glow-orb2"></div>
 
-<div class="container">
-
-  <!-- NAV -->
-  <nav>
-    <span class="nav-logo"><span>~/</span>anish-kumar</span>
-    <a href="https://www.chief-anishkumar-ai.me/" class="nav-back">← portfolio</a>
-  </nav>
-
-  <!-- HEADER -->
-  <header>
-    <div class="tag-row">
-      <span class="tag tag-nlp">RAG</span>
-      <span class="tag tag-wip"><span class="blink"></span>🚧 In Progress</span>
-    </div>
-    <h1>📄 Document Q&A<br><span class="h1-dim">RAG Pipeline</span></h1>
-    <p class="subtitle">
-      A production-ready Retrieval-Augmented Generation pipeline for semantic querying across 1K+ PDF documents —
-      FAISS vector search, transformer embeddings, grounded answers with source citations.
-    </p>
-    <div class="cta-row">
-      <a href="https://huggingface.co/spaces/anishkumardev4/Document_Q_and_A" target="_blank" rel="noopener" class="btn-demo">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-        Live Demo
-      </a>
-      <a href="https://github.com/anishk-neuroforge/Document_Q_and_A" target="_blank" rel="noopener" class="btn-gh">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.749 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
-        GitHub
-      </a>
-    </div>
-    <p class="demo-note">⚠ Demo runs on Streamlit Community Cloud with a sample PDF. Full 1K+ doc pipeline runs locally.</p>
-  </header>
-
-  <!-- METRICS -->
-  <div class="metrics-row reveal">
-    <div class="metric">
-      <div class="metric-label">BLEU</div>
-      <div class="metric-val">0.81</div>
-    </div>
-    <div class="metric">
-      <div class="metric-label">DOCS</div>
-      <div class="metric-val">1K+</div>
-    </div>
-    <div class="metric">
-      <div class="metric-label">LATENCY</div>
-      <div class="metric-val">1.2s</div>
-    </div>
-  </div>
-
-  <!-- DEMO PREVIEW -->
-  <div class="section reveal">
-    <div class="section-label">Live Demo Preview</div>
-    <div class="demo-preview">
-      <img src="image.png" alt="Streamlit RAG demo interface showing PDF upload, query input, and generated answer with source citations">
-      <div class="demo-preview-overlay">Streamlit Cloud · Query + Source Citation Interface</div>
-    </div>
-  </div>
-
-  <!-- UNDER CONSTRUCTION BANNER -->
-  <div class="wip-banner reveal">
-    <div class="wip-icon">🚧</div>
-    <div style="flex:1;">
-      <div class="wip-title">Under Construction — Full Pipeline Coming Soon</div>
-      <div class="wip-desc">
-        The demo version is live with core RAG features. BLEU evaluation, 1K+ doc corpus, hybrid retrieval,
-        re-ranking, and Docker deployment are actively being built.
-      </div>
-      <div class="progress-bar-wrap"><div class="progress-bar"></div></div>
-      <div class="progress-pct">~55% complete · demo live · evaluation in progress</div>
-    </div>
-  </div>
-
-  <!-- MODEL CARD -->
-  <div class="section reveal">
-    <div class="section-label">Model Card</div>
-    <div class="model-card">
-      <div class="model-card-header">
-        <div class="card-dot"></div>
-        📋 RAG Pipeline — Model Card
-      </div>
-      <div class="model-card-body">
-        <div class="model-row">
-          <span class="model-key">Dataset</span>
-          <span class="model-val">1K+ PDFs, semantic chunking (512 tokens)</span>
-        </div>
-        <div class="model-row">
-          <span class="model-key">Embeddings</span>
-          <span class="model-val">all-MiniLM-L6-v2 via HuggingFace</span>
-        </div>
-        <div class="model-row">
-          <span class="model-key">Vector Store</span>
-          <span class="model-val">FAISS (flat index, Top-5 retrieval)</span>
-        </div>
-        <div class="model-row">
-          <span class="model-key">LLM</span>
-          <span class="model-val">Llama 3.3 70B via Groq API</span>
-        </div>
-        <div class="model-row">
-          <span class="model-key">Metrics</span>
-          <span class="model-val"><strong>BLEU 0.81</strong> · Latency 1.2s · 1K+ docs</span>
-        </div>
-        <div class="model-row">
-          <span class="model-key">Baseline</span>
-          <span class="model-val">Keyword search BLEU 0.41 → <strong>Ours → 0.81</strong></span>
-        </div>
-        <div class="pipeline-box">
-          PDF <span class="pipe-arrow">→</span> chunker <span class="pipe-arrow">→</span> embeddings <span class="pipe-arrow">→</span> FAISS <span class="pipe-arrow">→</span> LLM <span class="pipe-arrow">→</span> answer + sources
-        </div>
-        <div class="tags-row">
-          <span class="tech-tag">LangChain</span>
-          <span class="tech-tag">FAISS</span>
-          <span class="tech-tag">HuggingFace</span>
-          <span class="tech-tag">Python</span>
-          <span class="tech-tag">PyPDF</span>
-          <span class="tech-tag">Streamlit</span>
-          <span class="tech-tag">Groq</span>
-        </div>
+  <div class="topbar">
+    <div class="wrap">
+      <div class="breadcrumb">~/anish-kumar <span>/ rag-document-qa</span></div>
+      <div class="topnav">
+        <a href="#">GitHub</a>
+        <a href="#">LinkedIn</a>
+        <a href="#">Portfolio</a>
       </div>
     </div>
   </div>
 
-  <!-- PROGRESS -->
-  <div class="section reveal">
-    <div class="section-label">Progress</div>
-    <div class="progress-card">
-      <div class="progress-group">
-        <div class="group-label group-done">✅ Done — Demo Version</div>
-        <div class="check-item done"><div class="check-icon icon-done">✓</div>Streamlit UI — file uploader, query input, results display</div>
-        <div class="check-item done"><div class="check-icon icon-done">✓</div>Multi-PDF upload and batch ingestion</div>
-        <div class="check-item done"><div class="check-icon icon-done">✓</div>Semantic chunking — 512 tokens, 50 overlap</div>
-        <div class="check-item done"><div class="check-icon icon-done">✓</div>HuggingFace embeddings (all-MiniLM-L6-v2)</div>
-        <div class="check-item done"><div class="check-icon icon-done">✓</div>FAISS vector store — build, persist, reload</div>
-        <div class="check-item done"><div class="check-icon icon-done">✓</div>Top-5 similarity retrieval with relevance scores</div>
-        <div class="check-item done"><div class="check-icon icon-done">✓</div>Context injection into LLM prompt (RAG)</div>
-        <div class="check-item done"><div class="check-icon icon-done">✓</div>Llama 3.3 70B answer generation via Groq API</div>
-        <div class="check-item done"><div class="check-icon icon-done">✓</div>Source citations — document name + page number</div>
-        <div class="check-item done"><div class="check-icon icon-done">✓</div>Query metrics — retrieval time, latency, chunk count</div>
-        <div class="check-item done"><div class="check-icon icon-done">✓</div>Chunk explorer — inspect retrieved chunks</div>
-        <div class="check-item done"><div class="check-icon icon-done">✓</div>One-click sample PDF loader (no upload required)</div>
+  <div class="wrap">
+
+    <section class="hero">
+      <span class="eyebrow"><span class="dot"></span> RAG · IN PROGRESS</span>
+      <h1>Document Q&amp;A that <em>shows its sources.</em></h1>
+      <p class="lede">A retrieval-augmented generation pipeline for asking questions across large PDF collections — every answer points back to the exact page it came from.</p>
+
+      <div class="cta-row">
+        <a href="#" class="btn btn-primary">Try the live demo →</a>
+        <a href="#" class="btn btn-ghost">View on GitHub</a>
       </div>
-      <div class="progress-group">
-        <div class="group-label group-wip">🚧 In Progress</div>
-        <div class="check-item"><div class="check-icon icon-wip">→</div>BLEU evaluation framework with labeled Q&A test set</div>
-        <div class="check-item"><div class="check-icon icon-wip">→</div>Latency optimization — targeting &lt;1.2s end-to-end</div>
-        <div class="check-item"><div class="check-icon icon-wip">→</div>Scale testing across 1K+ document corpus</div>
+      <p class="fineprint">Demo runs on Streamlit Community Cloud with a sample PDF. The full 1K+ document pipeline runs locally.</p>
+
+      <div class="demo">
+        <div class="panel">
+          <span class="panel-label">Source · warranty.pdf · p. 4</span>
+          <p class="doc-line">5.1 Coverage Terms</p>
+          <p class="doc-line">All registered products are covered under standard terms. <span class="hl">The warranty period extends to 24 months from the date of purchase</span>, provided proof of purchase is supplied.</p>
+          <p class="doc-line">Claims outside this window are handled under the extended-service policy, see section 6.2.</p>
+        </div>
+        <div class="arrow">→</div>
+        <div class="panel">
+          <p class="answer-q">Q: How long is the warranty?</p>
+          <p class="answer-a">24 months from the date of purchase, as long as proof of purchase is provided.</p>
+          <span class="citation">📄 warranty.pdf · p.4</span>
+        </div>
       </div>
-      <div class="progress-group">
-        <div class="group-label group-plan">📋 Planned</div>
-        <div class="check-item"><div class="check-icon icon-plan">·</div>Hybrid retrieval — BM25 sparse + FAISS dense fusion</div>
-        <div class="check-item"><div class="check-icon icon-plan">·</div>Re-ranking layer — cross-encoder on top-k results</div>
-        <div class="check-item"><div class="check-icon icon-plan">·</div>Streaming responses — token-by-token generation</div>
-        <div class="check-item"><div class="check-icon icon-plan">·</div>Docker containerization — one-command deployment</div>
-        <div class="check-item"><div class="check-icon icon-plan">·</div>MLflow experiment tracking</div>
+    </section>
+
+    <section class="status">
+      <div class="status-top">
+        <h3>Where this stands today</h3>
+        <span class="status-pct">~55% complete</span>
+      </div>
+      <div class="bar"><div class="bar-fill"></div></div>
+      <p>The core pipeline is built and the demo is <strong>live</strong> — upload a PDF, ask a question, get a grounded answer with a citation. What's left is making it provably good: a real evaluation set, hybrid retrieval, re-ranking, and testing at the full 1K+ document scale.</p>
+    </section>
+
+    <div class="stats-head">
+      <h2>Early numbers</h2>
+      <p>Measured during development on a small labeled test set — not yet a formal benchmark. Treat these as a direction, not a final score.</p>
+    </div>
+    <div class="stats">
+      <div class="stat">
+        <span class="stat-label">BLEU score</span>
+        <div class="stat-value">0.81</div>
+        <div class="stat-note">vs. 0.41 for plain keyword search</div>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Corpus size</span>
+        <div class="stat-value">1,000+</div>
+        <div class="stat-note">PDFs targeted for the full pipeline</div>
+      </div>
+      <div class="stat">
+        <span class="stat-label">End-to-end latency</span>
+        <div class="stat-value">1.2s</div>
+        <div class="stat-note">retrieval + generation, current build</div>
       </div>
     </div>
-  </div>
 
-  <!-- STACK -->
-  <div class="section reveal">
-    <div class="section-label">Stack</div>
+    <div class="section-head">
+      <h2>How a question becomes an answer</h2>
+      <p>One linear path from raw PDF to a cited answer — no step is hidden.</p>
+    </div>
+    <div class="pipeline">
+      <div class="pstep"><div class="pname">PDF</div><div class="pdesc">raw upload</div></div>
+      <div class="parrow">→</div>
+      <div class="pstep"><div class="pname">Chunker</div><div class="pdesc">512 tok · 50 overlap</div></div>
+      <div class="parrow">→</div>
+      <div class="pstep"><div class="pname">Embeddings</div><div class="pdesc">MiniLM-L6-v2</div></div>
+      <div class="parrow">→</div>
+      <div class="pstep"><div class="pname">FAISS</div><div class="pdesc">top‑5 retrieval</div></div>
+      <div class="parrow">→</div>
+      <div class="pstep"><div class="pname">LLM</div><div class="pdesc">Llama 3.3 70B</div></div>
+      <div class="parrow">→</div>
+      <div class="pstep"><div class="pname">Answer</div><div class="pdesc">+ sources</div></div>
+    </div>
+
+    <div class="section-head">
+      <h2>Model card</h2>
+      <p>The honest specs — what the system is actually running on right now.</p>
+    </div>
+    <div class="modelcard">
+      <div class="mc-row"><div class="mc-key">Dataset</div><div class="mc-val">1K+ PDFs, semantic chunking (512 tokens)</div></div>
+      <div class="mc-row"><div class="mc-key">Embeddings</div><div class="mc-val">all-MiniLM-L6-v2 via HuggingFace</div></div>
+      <div class="mc-row"><div class="mc-key">Vector store</div><div class="mc-val">FAISS — flat index, top‑5 retrieval</div></div>
+      <div class="mc-row"><div class="mc-key">LLM</div><div class="mc-val">Llama 3.3 70B via Groq API</div></div>
+      <div class="mc-row"><div class="mc-key">Baseline</div><div class="mc-val">Keyword search BLEU 0.41 → RAG pipeline 0.81</div></div>
+    </div>
+
+    <div class="section-head">
+      <h2>Build log</h2>
+      <p>What's shipped, what's underway, and what's next.</p>
+    </div>
+    <div class="progress-grid">
+      <div class="pcol">
+        <h4><span class="ic ic-done"></span> Done — demo version</h4>
+        <ul class="col-done">
+          <li>Streamlit UI — upload, query, results</li>
+          <li>Multi-PDF upload &amp; batch ingestion</li>
+          <li>Semantic chunking — 512 tok, 50 overlap</li>
+          <li>HuggingFace embeddings (MiniLM)</li>
+          <li>FAISS store — build, persist, reload</li>
+          <li>Top‑5 retrieval with relevance scores</li>
+          <li>Context injection into LLM prompt</li>
+          <li>Llama 3.3 70B generation via Groq</li>
+          <li>Source citations — doc name + page</li>
+          <li>Query metrics — latency, chunk count</li>
+          <li>Chunk explorer for retrieved context</li>
+          <li>One-click sample PDF, no upload needed</li>
+        </ul>
+      </div>
+      <div class="pcol">
+        <h4><span class="ic ic-progress"></span> In progress</h4>
+        <ul class="col-progress">
+          <li>BLEU evaluation framework, labeled Q&amp;A set</li>
+          <li>Latency optimization — targeting &lt;1.2s</li>
+          <li>Scale testing across the full 1K+ corpus</li>
+        </ul>
+      </div>
+      <div class="pcol">
+        <h4><span class="ic ic-planned"></span> Planned</h4>
+        <ul class="col-planned">
+          <li>Hybrid retrieval — BM25 + FAISS fusion</li>
+          <li>Re-ranking — cross-encoder on top‑k</li>
+          <li>Streaming, token-by-token responses</li>
+          <li>Docker containerization</li>
+          <li>MLflow experiment tracking</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="section-head">
+      <h2>Stack</h2>
+      <p>What's actually running underneath.</p>
+    </div>
     <div class="stack-grid">
-      <div class="stack-item">
-        <div class="stack-icon">LC</div>
-        <div><div class="stack-name">LangChain</div><div class="stack-role">Orchestration</div></div>
-      </div>
-      <div class="stack-item">
-        <div class="stack-icon">FS</div>
-        <div><div class="stack-name">FAISS</div><div class="stack-role">Vector Store</div></div>
-      </div>
-      <div class="stack-item">
-        <div class="stack-icon">HF</div>
-        <div><div class="stack-name">HuggingFace</div><div class="stack-role">Embeddings</div></div>
-      </div>
-      <div class="stack-item">
-        <div class="stack-icon">GQ</div>
-        <div><div class="stack-name">Groq</div><div class="stack-role">LLM API</div></div>
-      </div>
-      <div class="stack-item">
-        <div class="stack-icon">ST</div>
-        <div><div class="stack-name">Streamlit</div><div class="stack-role">Frontend</div></div>
-      </div>
-      <div class="stack-item">
-        <div class="stack-icon">PY</div>
-        <div><div class="stack-name">Python 3.10+</div><div class="stack-role">Core</div></div>
-      </div>
+      <div class="chip"><span class="badge">LC</span> LangChain <span class="chip-role">· orchestration</span></div>
+      <div class="chip"><span class="badge">FS</span> FAISS <span class="chip-role">· vector store</span></div>
+      <div class="chip"><span class="badge">HF</span> HuggingFace <span class="chip-role">· embeddings</span></div>
+      <div class="chip"><span class="badge">GQ</span> Groq <span class="chip-role">· LLM API</span></div>
+      <div class="chip"><span class="badge">ST</span> Streamlit <span class="chip-role">· frontend</span></div>
+      <div class="chip"><span class="badge">PY</span> Python 3.10+ <span class="chip-role">· core</span></div>
     </div>
+
   </div>
 
-  <!-- FOOTER -->
   <footer>
-    <div class="footer-author">Built by <strong>Anish Kumar</strong> — ML Engineer (BTech AI/ML)</div>
-    <div class="footer-links">
-      <a href="https://github.com/anishk-neuroforge" target="_blank" rel="noopener">GitHub</a>
-      <a href="https://linkedin.com/in/anishkumar25" target="_blank" rel="noopener">LinkedIn</a>
-      <a href="https://anishk-neuroforge.github.io">Portfolio</a>
+    <div class="wrap">
+      <p>Built by Anish Kumar — ML Engineer (BTech AI/ML)</p>
+      <div class="flinks">
+        <a href="#">GitHub</a>
+        <a href="#">LinkedIn</a>
+        <a href="#">Portfolio</a>
+      </div>
     </div>
   </footer>
-
-</div>
-
-<script>
-  // Scroll reveal animation
-  const observer = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-      if (entry.isIntersecting) {
-        entry.target.classList.add('visible');
-      }
-    });
-  }, { threshold: 0.1 });
-
-  document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
-</script>
 
 </body>
 </html>
